@@ -189,7 +189,7 @@ export async function handleCourseRequest(request, env) {
           generationConfig: {
             responseFormat: {
               text: {
-                mimeType: "application/json",
+                mimeType: "APPLICATION_JSON",
                 schema: COURSE_SCHEMA,
               },
             },
