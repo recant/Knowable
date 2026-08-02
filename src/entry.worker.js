@@ -3,7 +3,8 @@ import { everyApp } from "@every-app/sdk/server";
 import manifest from "../everyapp.config";
 import { handleCourseRequest } from "./server/course";
 import { handleLabRequest } from "./server/lab";
-import { handleTutorRequest } from "./server/tutor";
+import { handleTeachRequest } from "./server/teach";
+import { handleNotesRequest } from "./server/notes";
 
 const handler = async (request, env) => {
   const url = new URL(request.url);
@@ -20,12 +21,16 @@ const handler = async (request, env) => {
     return handleCourseRequest(request, env);
   }
 
+  if (url.pathname === "/api/teach" && request.method === "POST") {
+    return handleTeachRequest(request, env);
+  }
+
   if (url.pathname === "/api/lab" && request.method === "POST") {
     return handleLabRequest(request, env);
   }
 
-  if (url.pathname === "/api/tutor" && request.method === "POST") {
-    return handleTutorRequest(request, env);
+  if (url.pathname === "/api/notes" && request.method === "POST") {
+    return handleNotesRequest(request, env);
   }
 
   return tanstackEntry.fetch(request);
