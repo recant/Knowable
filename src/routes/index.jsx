@@ -1,6 +1,7 @@
-"use client";
-
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
+
+export const Route = createFileRoute("/")({ component: Home });
 
 const EXAMPLES = [
   { title: "Calculus", kicker: "Math", icon: "∫", description: "See derivatives and integrals as motion, area, and change." },
@@ -10,15 +11,17 @@ const EXAMPLES = [
   { title: "Molecular Biology", kicker: "Biology", icon: "⌁", description: "Understand regulation and cellular systems as dynamic processes." },
   { title: "Machine Learning", kicker: "Computing", icon: "◇", description: "Learn models by changing their assumptions and watching behavior shift." },
   { title: "Personal Finance", kicker: "Life", icon: "$", description: "Play with compounding, risk, debt, and tradeoffs using real decisions." },
-  { title: "Statistics", kicker: "Data", icon: "σ", description: "Learn inference by sampling, guessing, testing, and updating." }
+  { title: "Statistics", kicker: "Data", icon: "σ", description: "Learn inference by sampling, guessing, testing, and updating." },
 ];
 
-function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
+function clamp(n, min, max) {
+  return Math.max(min, Math.min(max, n));
+}
 
 function curveY(type, x, a, b) {
   switch (type) {
-    case "quadratic": return a * x * x / 5 + b;
-    case "exponential": return Math.exp(clamp(a * x / 6, -4, 4)) + b;
+    case "quadratic": return (a * x * x) / 5 + b;
+    case "exponential": return Math.exp(clamp((a * x) / 6, -4, 4)) + b;
     case "logistic": return 8 / (1 + Math.exp(-a * x)) + b;
     case "sine": return a * Math.sin(x) + b;
     default: return a * x + b;
@@ -31,8 +34,7 @@ function Sparkline({ lab, a, b }) {
   const padding = 28;
   const points = Array.from({ length: 80 }, (_, i) => {
     const x = -5 + (10 * i) / 79;
-    const y = curveY(lab.functionType || "linear", x, a, b);
-    return { x, y };
+    return { x, y: curveY(lab.functionType || "linear", x, a, b) };
   });
   const ys = points.map((p) => p.y);
   const yMin = Math.min(...ys, -1);
@@ -53,7 +55,10 @@ function Sparkline({ lab, a, b }) {
 }
 
 function ProbabilityLab({ p }) {
-  const outcomes = useMemo(() => Array.from({ length: 60 }, (_, i) => ((i * 37 + Math.round(p * 100) * 17) % 100) < p * 100), [p]);
+  const outcomes = useMemo(
+    () => Array.from({ length: 60 }, (_, i) => ((i * 37 + Math.round(p * 100) * 17) % 100) < p * 100),
+    [p],
+  );
   const hits = outcomes.filter(Boolean).length;
   return (
     <div className="probLab">
@@ -66,7 +71,10 @@ function ProbabilityLab({ p }) {
 }
 
 function VectorLab({ a, b }) {
-  const width = 620, height = 250, cx = width / 2, cy = height / 2;
+  const width = 620;
+  const height = 250;
+  const cx = width / 2;
+  const cy = height / 2;
   const scale = 45;
   const x2 = cx + clamp(a, -5, 5) * scale;
   const y2 = cy - clamp(b, -5, 5) * scale;
@@ -82,7 +90,9 @@ function VectorLab({ a, b }) {
 }
 
 function ProjectileLab({ speed, angle }) {
-  const width = 620, height = 250, pad = 26;
+  const width = 620;
+  const height = 250;
+  const pad = 26;
   const rad = (angle * Math.PI) / 180;
   const g = 9.81;
   const vx = Math.max(0.1, speed * Math.cos(rad));
@@ -122,14 +132,12 @@ function InteractiveLab({ lab }) {
       </div>
       <p className="labInstruction">{lab.instruction}</p>
       <div className="prediction">Before you move anything: <strong>{lab.prediction}</strong></div>
-
       <div className="visualStage">
         {kind === "curve" && <Sparkline lab={lab} a={a} b={b} />}
         {kind === "probability" && <ProbabilityLab p={clamp(a / Math.max(1, lab.param1Max || 1), 0.02, 0.98)} />}
         {kind === "vector" && <VectorLab a={a} b={b} />}
         {kind === "projectile" && <ProjectileLab speed={Math.max(1, a * 10)} angle={clamp(b * 15 + 30, 5, 85)} />}
       </div>
-
       <div className="controls">
         <label>
           <span>{lab.param1Label} <b>{Number(a).toFixed(1)}</b></span>
@@ -154,7 +162,7 @@ function Check({ challenge }) {
       <h3>{challenge.question}</h3>
       <div className="answers">
         {challenge.options.map((option, i) => (
-          <button key={option} onClick={() => setPicked(i)} className={picked === i ? (correct ? "answer correct" : "answer wrong") : "answer"}>
+          <button key={`${i}-${option}`} onClick={() => setPicked(i)} className={picked === i ? (correct ? "answer correct" : "answer wrong") : "answer"}>
             <span>{String.fromCharCode(65 + i)}</span>{option}
           </button>
         ))}
@@ -164,7 +172,7 @@ function Check({ challenge }) {
   );
 }
 
-export default function Home() {
+function Home() {
   const [screen, setScreen] = useState("home");
   const [selected, setSelected] = useState(null);
   const [why, setWhy] = useState("");
@@ -176,6 +184,7 @@ export default function Home() {
   const [completed, setCompleted] = useState([]);
   const [loading, setLoading] = useState(false);
   const [demo, setDemo] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     try {
@@ -189,26 +198,33 @@ export default function Home() {
 
   function chooseCourse(item) {
     setSelected(item);
-    setWhy(""); setSuccess(""); setBackground("");
+    setWhy("");
+    setSuccess("");
+    setBackground("");
+    setError("");
     setScreen("onboarding");
   }
 
   async function generateCourse() {
     if (!selected?.title || !why.trim() || !success.trim()) return;
     setLoading(true);
+    setError("");
     try {
       const res = await fetch("/api/course", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic: selected.title, why, success, background })
+        body: JSON.stringify({ topic: selected.title, why, success, background }),
       });
       const data = await res.json();
+      if (!res.ok || !data.course) throw new Error(data.error || "Could not build course");
       setCourse(data.course);
       setDemo(Boolean(data.demo));
       setCompleted([]);
       setLessonIndex(0);
       localStorage.setItem("knowable-course", JSON.stringify({ course: data.course, completed: [] }));
       setScreen("course");
+    } catch (err) {
+      setError(err?.message || "Could not build course");
     } finally {
       setLoading(false);
     }
@@ -233,6 +249,7 @@ export default function Home() {
             <label className="bigLabel">Why are you trying to learn this?<textarea autoFocus value={why} onChange={(e) => setWhy(e.target.value)} placeholder="e.g. I want enough probability intuition to understand ML papers without hand-waving" /></label>
             <label className="bigLabel">How will you know you’ve succeeded?<textarea value={success} onChange={(e) => setSuccess(e.target.value)} placeholder="e.g. I can derive and explain Bayes' rule and solve real diagnostic-test problems" /></label>
             <label className="bigLabel">What do you already know? <span>optional</span><textarea value={background} onChange={(e) => setBackground(e.target.value)} placeholder="e.g. basic algebra, almost no statistics" /></label>
+            {error && <p className="errorBox">{error}</p>}
             <button className="primary full" disabled={!why.trim() || !success.trim() || loading} onClick={generateCourse}>{loading ? "Designing your course…" : "Build my course →"}</button>
           </div>
         </section>
@@ -251,7 +268,7 @@ export default function Home() {
           <div className="progressRow"><span>{progress}% complete</span><div className="progressTrack"><i style={{ width: `${progress}%` }} /></div></div>
           <div className="lessonList">
             {course.lessons.map((item, i) => (
-              <button key={item.title} className={`lessonNav ${i === lessonIndex ? "active" : ""}`} onClick={() => setLessonIndex(i)}>
+              <button key={`${i}-${item.title}`} className={`lessonNav ${i === lessonIndex ? "active" : ""}`} onClick={() => setLessonIndex(i)}>
                 <span className={completed.includes(i) ? "lessonNum done" : "lessonNum"}>{completed.includes(i) ? "✓" : i + 1}</span>
                 <span><b>{item.title.replace(/^\d+\.\s*/, "")}</b><small>10 min</small></span>
               </button>
@@ -275,7 +292,7 @@ export default function Home() {
 
   return (
     <main className="shell">
-      <nav className="nav"><button className="brand">knowable<span>.</span></button><div className="navRight"><span>100% free</span><button className="textButton" onClick={() => course && setScreen("course")} disabled={!course}>Continue learning →</button></div></nav>
+      <nav className="nav"><button className="brand">knowable<span>.</span></button><div className="navRight"><span>open source + free</span><button className="textButton" onClick={() => course && setScreen("course")} disabled={!course}>Continue learning →</button></div></nav>
       <section className="hero">
         <div className="heroBadge">Learning that rearranges itself around you</div>
         <h1>Don’t take a course.<br/><em>Build understanding.</em></h1>

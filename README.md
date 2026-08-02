@@ -1,38 +1,89 @@
 # Knowable
 
-A free, personalized interactive learning prototype: choose a topic, explain why you want to learn it and how you will measure success, then get an AI-designed sequence of 10-minute lessons with interactive labs.
+Knowable is an open-source, personalized alternative to fixed paid learning apps. Pick a topic, explain why you want to learn it and what success means, and Knowable builds a sequence of 10-minute lessons with interactive labs.
 
-## Run locally
+This version is built for **Every App** and runs on Cloudflare through the Every App Gateway.
+
+## Stack
+
+- Every App (`@every-app/sdk`)
+- TanStack Start / React
+- Cloudflare Workers
+- Gemini 2.5 Flash for personalized course generation
+- Browser `localStorage` for MVP progress
+
+No database is required for the hackathon MVP.
+
+## Local development
+
+Every App currently expects Node 22+ and pnpm 9+.
 
 ```bash
-npm install
-cp .env.example .env.local
-# add GEMINI_API_KEY to .env.local
-npm run dev
+pnpm install
+cp .dev.vars.example .dev.vars
+# edit .dev.vars and add GEMINI_API_KEY
+pnpm dev
 ```
 
-Open http://localhost:3000.
+`pnpm dev` runs `everyapp dev`. Open the local Knowable URL printed by the CLI (normally `http://knowable.localhost:8787`).
 
-## AI provider
+If `GEMINI_API_KEY` is absent or Gemini fails, Knowable deliberately falls back to a deterministic demo course so the UI still works.
 
-The app uses `gemini-2.5-flash` through the Gemini Developer API. If `GEMINI_API_KEY` is missing or the request fails, it falls back to a deterministic demo course so the UI is still testable.
+## One-time Every App / Cloudflare setup
 
-## Product architecture
+You only need this to deploy, not to edit the code.
 
-The model does **not** generate arbitrary JavaScript that is executed in the page. It generates a constrained JSON course specification. Each lab selects one of a trusted set of interactive primitives (`curve`, `probability`, `vector`, `projectile`) and supplies pedagogically meaningful parameters. This makes generation safer and more reliable while preserving personalization.
+1. Have a Cloudflare account and a domain on Cloudflare.
+2. Authenticate the CLI:
+
+```bash
+npx -y wrangler login
+```
+
+3. Deploy your Every App Gateway:
+
+```bash
+npx -y everyapp@latest gateway deploy --domain YOUR_DOMAIN
+```
+
+If the CLI asks for a wildcard DNS record, add a proxied CNAME `*` pointing to your domain in Cloudflare DNS.
+
+4. Open the Gateway URL, create the owner account, then create a deploy token in the Gateway admin UI.
+5. Connect this computer to the Gateway:
+
+```bash
+npx -y everyapp@latest login
+```
+
+## Deploy Knowable
+
+From this repository:
+
+```bash
+pnpm install
+pnpm deploy
+```
+
+The first deploy can run without Gemini and will use demo mode. After the app exists in Cloudflare, generate its Wrangler config and add the production secret:
+
+```bash
+npx -y everyapp@latest app generate-config
+npx wrangler secret put GEMINI_API_KEY -c .everyapp/wrangler.json
+```
+
+Paste your Gemini API key when prompted. Do not commit `.dev.vars` or the key itself.
+
+## Architecture
+
+`everyapp.config.ts` is the Every App manifest. `src/entry.worker.js` is the authenticated Worker entry. It intercepts `POST /api/course`, calls Gemini server-side, and sends everything else to TanStack Start.
+
+The model does not emit executable JavaScript. It returns a constrained course/lab JSON spec. The React frontend renders trusted interactive primitives (`curve`, `probability`, `vector`, and `projectile`).
 
 ## MVP flow
 
-1. Home page shows example courses plus a custom topic box.
-2. Learner answers why they care, what success looks like, and optionally what they know already.
-3. `/api/course` generates 8–10 chained lessons, each exactly 10 minutes.
-4. Every lesson includes a concise explanation, an interactive lab, and a conceptual prediction/check.
-5. Progress is stored in `localStorage`.
-
-## Next upgrades
-
-- Generate follow-up lessons based on mistakes, not only onboarding.
-- Add richer lab primitives: drag-and-drop proofs, circuit builders, causal graphs, code sandboxes, molecular diagrams.
-- Add user accounts and durable progress.
-- Cache common generated courses so popular paths cost almost nothing.
-- Add content verification and citations for factual domains before public launch.
+1. Choose an example course or type any topic.
+2. Say why you want to learn it.
+3. Define what success looks like.
+4. Gemini designs an 8–10 lesson dependency chain.
+5. Each lesson takes about 10 minutes and includes explanation, prediction, an interactive lab, and a conceptual check.
+6. Progress is stored locally in the browser.

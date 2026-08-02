@@ -1,6 +1,14 @@
 node_modules
-.next
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+.dev.vars
 .env
 .env.local
+.env.production
+.everyapp/
+.wrangler/
+dist/
+.output/
+.tanstack/
 .DS_Store
-npm-debug.log*
