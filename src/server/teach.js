@@ -1,4 +1,4 @@
-const ACTIONS = new Set(["explain", "question", "visual", "lab", "mastered"]);
+const ACTIONS = new Set(["explain", "question", "visual", "mastered"]);
 
 function extractJson(text) {
   if (typeof text !== "string") throw new Error("Gemini returned no text");
@@ -14,32 +14,95 @@ function uniqueStrings(values, limit = 12) {
   return [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))].slice(0, limit);
 }
 
-function fallbackTurn({ lesson, transcript = [] }) {
+function lastUserText(transcript = []) {
+  return [...transcript].reverse().find((message) => message.role === "user")?.content?.trim() || "";
+}
+
+function learnerIsLost(transcript = []) {
+  const text = lastUserText(transcript).toLowerCase();
+  if (!text) return false;
+  return /\b(i\s*(?:do not|don't|dont)\s*know|no idea|i(?:'m| am)\s*(?:lost|confused|stuck)|i\s*suck\s*at|what does that mean|i don't understand|i dont understand|help me|teach me|explain it)\b/i.test(text);
+}
+
+function normalizeLabEvents(events) {
+  if (!Array.isArray(events)) return [];
+  return events
+    .map((event) => ({
+      event: String(event?.event || "action").slice(0, 80),
+      summary: String(event?.summary || "").slice(0, 500),
+    }))
+    .filter((event) => event.summary)
+    .slice(-12);
+}
+
+function demoTurn({ lesson, transcript = [], labEvents = [] }) {
   const userTurns = transcript.filter((message) => message.role === "user").length;
-  if (userTurns === 0) {
+  const task = lesson?.labBrief?.learnerTask || "Try the main action in the lab a few times and notice what changes.";
+  const lastEvent = labEvents[labEvents.length - 1]?.summary;
+
+  if (userTurns === 0 && !lastEvent) {
     return {
-      action: "question",
-      reply: `We’ll build ${String(lesson?.title || "this idea").replace(/^\d+\.\s*/, "")} from something concrete. Before I explain it: what do you already think this idea means, even if you’re unsure?`,
+      action: "explain",
+      reply: `Start with the lab, not a definition. ${task} Don’t calculate anything yet—just notice what the system actually does.`,
       mastered: false,
       confidence: 0,
       pitfalls: [],
       coveredConcepts: [],
       artifactBrief: null,
+      demo: true,
     };
   }
+
+  if (lastEvent) {
+    return {
+      action: "question",
+      reply: `You just got this result: ${lastEvent} What pattern do you think that is starting to show?`,
+      mastered: false,
+      confidence: 0.2,
+      pitfalls: [],
+      coveredConcepts: [],
+      artifactBrief: null,
+      demo: true,
+    };
+  }
+
+  if (learnerIsLost(transcript)) {
+    return {
+      action: "explain",
+      reply: `No problem—don’t solve it yet. Use the lab as the example. ${task} I’m looking for what changes over repeated tries, not a formula.`,
+      mastered: false,
+      confidence: 0,
+      pitfalls: ["Needed the concept rebuilt from the concrete lab."],
+      coveredConcepts: [],
+      artifactBrief: null,
+      demo: true,
+    };
+  }
+
   return {
     action: "question",
-    reply: "Good start. Now give me one concrete example and tell me what you expect to happen. I want to see the idea in your own mental model, not a memorized definition.",
+    reply: "What did the lab make you notice that you would not have noticed from a definition alone?",
     mastered: false,
-    confidence: 0.25,
+    confidence: 0.2,
     pitfalls: [],
     coveredConcepts: [],
     artifactBrief: null,
+    demo: true,
   };
 }
 
-function buildPrompt({ lesson, course, transcript, state }) {
-  return `You are the live teacher inside Knowable. You are not writing a textbook page. You are having an adaptive one-on-one teaching conversation.
+function buildPrompt({ lesson, course, transcript, state, labEvents }) {
+  const needsTeaching = learnerIsLost(transcript);
+  const firstTurn = !transcript?.length;
+  const recentLabEvents = normalizeLabEvents(labEvents);
+  const learnerStatus = needsTeaching
+    ? "The learner explicitly said they do not know, are confused, lost, or need help. Teach the missing idea before testing them again."
+    : "Adapt from what the learner has actually said and done.";
+
+  return `You are the live AI teacher inside Knowable. The INTERACTIVE LAB already visible on the page is the centerpiece of this lesson. You are the guide around it.
+
+${learnerStatus}
+${firstTurn ? "THIS IS THE FIRST TURN. Do not ask for a definition. Direct the learner to one specific action in the lab and tell them what to watch for." : ""}
 
 COURSE GOAL
 ${course?.learnerGoal || "Understand the subject deeply."}
@@ -52,10 +115,12 @@ ${JSON.stringify({
     title: lesson?.title,
     objective: lesson?.objective,
     keyIdeas: lesson?.keyIdeas,
-    tutorSeed: lesson?.tutorSeed,
     labBrief: lesson?.labBrief,
-    visualBrief: lesson?.visualBrief,
+    tutorSeed: lesson?.tutorSeed,
   }, null, 2)}
+
+RECENT LAB EVENTS REPORTED BY THE INTERACTIVE EXPERIENCE
+${JSON.stringify(recentLabEvents, null, 2)}
 
 KNOWN SESSION STATE
 ${JSON.stringify({
@@ -66,47 +131,47 @@ ${JSON.stringify({
 CONVERSATION
 ${JSON.stringify(transcript || [], null, 2)}
 
-Your job is to choose the single best NEXT teaching move.
+Choose the single best NEXT teaching move.
 
 Teaching rules:
+- The lab is primary. Use it as the shared concrete object of the conversation.
+- On the first turn, direct ONE specific lab action. Do not open with an abstract question.
+- When lab events are present, refer to the learner's actual result. Do not act as if you cannot see it.
+- If the learner says "I don't know", "I'm confused", or lacks prerequisites, TEACH. Do not respond with another test question.
+- Never call "I don't know" a good answer or a good start.
 - Teach one small idea at a time.
-- Start concrete and intuitive. Use examples before abstraction.
+- Start concrete. Only introduce the formal rule after the learner has seen the pattern.
+- Keep replies under 90 words, usually under 60.
+- Ask at most ONE question.
 - Never dump a paragraph of jargon.
-- Keep your reply under 90 words, usually under 60.
-- Ask at most ONE question in a reply.
-- Do not use LaTeX delimiters such as $...$, \\(...\\), or \\[...\\]. The UI does not render them.
-- Do not introduce symbols until you have explained what each symbol means in plain English.
-- If the learner gives a nonsense answer, misconception, or partial answer, diagnose it gently and teach from there.
-- Do not merely say an answer is wrong. Find the mistaken mental model.
-- Use a visual when spatial structure, flow, comparison, geometry, or a process would become clearer by seeing it.
-- Use a lab when changing a variable and observing the result would genuinely teach the idea.
-- A lab must target ONE idea, not become a mini-dashboard.
-- Do not force a visual or lab every turn.
-- Before declaring mastery, get evidence that the learner can explain the idea and predict or transfer it to a new example.
-- Mastery should feel earned, not bureaucratic.
-- Track specific learner pitfalls that actually appeared in this conversation. These will go into their lesson notes.
+- No LaTeX delimiters. Use normal prose and simple inline arithmetic.
+- Explain every symbol before using it.
+- Diagnose misconceptions rather than just marking answers wrong.
+- You may request a small supporting visual only if the primary lab cannot show a needed static structure. Do not request a second lab.
+- Before mastery, get evidence that the learner can explain the mechanism AND predict/transfer it to a new case.
+- Track only pitfalls the learner actually showed.
 
-Return ONLY valid JSON with this shape:
+Return ONLY valid JSON:
 {
-  "action": "explain | question | visual | lab | mastered",
-  "reply": "the next short tutor message",
+  "action": "explain | question | visual | mastered",
+  "reply": "short next tutor message",
   "mastered": false,
   "confidence": 0.0,
-  "pitfalls": ["specific misconception the learner showed"],
-  "coveredConcepts": ["specific concept now demonstrated"],
+  "pitfalls": ["specific observed misconception"],
+  "coveredConcepts": ["specific concept demonstrated"],
   "artifactBrief": null
 }
 
-If action is visual or lab, artifactBrief must instead be:
+If action is visual, artifactBrief is:
 {
-  "kind": "visual" or "lab",
-  "title": "short human title",
-  "concept": "the single concept the artifact should teach",
-  "purpose": "why this artifact helps right now",
-  "task": "one short thing the learner should notice or try"
+  "kind": "visual",
+  "title": "short title",
+  "concept": "one static structure to show",
+  "purpose": "why the lab alone is not enough",
+  "task": "one thing to notice"
 }
 
-If action is mastered, make reply a concise, specific statement of what the learner demonstrated. Set mastered=true and confidence between 0 and 1.`;
+If action is mastered, set mastered=true and confidence between 0 and 1, and state specifically what the learner demonstrated.`;
 }
 
 export async function handleTeachRequest(request, env) {
@@ -125,9 +190,10 @@ export async function handleTeachRequest(request, env) {
         .map((message) => ({ role: message.role, content: String(message.content || "").slice(0, 4000) }))
         .slice(-24)
     : [];
+  const labEvents = normalizeLabEvents(input.labEvents);
 
   const key = env?.GEMINI_API_KEY;
-  if (!key) return Response.json(fallbackTurn({ lesson: input.lesson, transcript }));
+  if (!key) return Response.json(demoTurn({ lesson: input.lesson, transcript, labEvents }));
 
   try {
     const response = await fetch(
@@ -136,39 +202,47 @@ export async function handleTeachRequest(request, env) {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-goog-api-key": key },
         body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: buildPrompt({ ...input, transcript }) }] }],
+          contents: [{ role: "user", parts: [{ text: buildPrompt({ ...input, transcript, labEvents }) }] }],
         }),
       },
     );
 
     if (!response.ok) {
-      console.error("Teaching model error", response.status, await response.text());
-      return Response.json(fallbackTurn({ lesson: input.lesson, transcript }));
+      const detail = await response.text();
+      console.error("Teaching model error", response.status, detail);
+      return Response.json({ error: "The AI tutor did not answer. Retry this turn.", code: `gemini_${response.status}` }, { status: 502 });
     }
 
     const data = await response.json();
     const text = data?.candidates?.[0]?.content?.parts?.map((part) => part?.text || "").join("").trim();
-    const raw = extractJson(text);
+    let raw;
+    try {
+      raw = extractJson(text);
+    } catch (error) {
+      console.error("Teaching JSON parse failure", text);
+      throw error;
+    }
+
     const userTurns = transcript.filter((message) => message.role === "user").length;
     const confidence = Math.max(0, Math.min(1, Number(raw?.confidence || 0)));
     const canMaster = Boolean(raw?.mastered) && confidence >= 0.82 && userTurns >= 2;
-    const requestedAction = ACTIONS.has(raw?.action) ? raw.action : "question";
+    const requestedAction = ACTIONS.has(raw?.action) ? raw.action : "explain";
     const action = canMaster ? "mastered" : requestedAction === "mastered" ? "question" : requestedAction;
 
     let artifactBrief = null;
-    if ((action === "visual" || action === "lab") && raw?.artifactBrief) {
+    if (action === "visual" && raw?.artifactBrief) {
       artifactBrief = {
-        kind: action,
-        title: String(raw.artifactBrief.title || (action === "lab" ? "Try it" : "See it")),
+        kind: "visual",
+        title: String(raw.artifactBrief.title || "See it"),
         concept: String(raw.artifactBrief.concept || input.lesson?.objective || "current concept"),
-        purpose: String(raw.artifactBrief.purpose || "Make the current idea concrete."),
-        task: String(raw.artifactBrief.task || "Change one thing and notice what happens."),
+        purpose: String(raw.artifactBrief.purpose || "Make one structure visible."),
+        task: String(raw.artifactBrief.task || "Notice the relationship."),
       };
     }
 
     return Response.json({
       action,
-      reply: String(raw?.reply || "Tell me what you think is happening here, in your own words."),
+      reply: String(raw?.reply || "Let me explain that another way using the lab."),
       mastered: canMaster,
       confidence,
       pitfalls: uniqueStrings(raw?.pitfalls),
@@ -177,6 +251,6 @@ export async function handleTeachRequest(request, env) {
     });
   } catch (error) {
     console.error("Teaching loop error", error);
-    return Response.json(fallbackTurn({ lesson: input.lesson, transcript }));
+    return Response.json({ error: "The AI tutor response could not be read. Retry this turn.", code: "tutor_parse_error" }, { status: 502 });
   }
 }
