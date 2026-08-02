@@ -145,6 +145,15 @@ Rules:
 - End with a lesson that directly tests the learner's stated success metric.`;
 }
 
+function geminiErrorMessage(status, detail) {
+  try {
+    const parsed = JSON.parse(detail);
+    const message = parsed?.error?.message;
+    if (message) return `Gemini API ${status}: ${message}`;
+  } catch {}
+  return `Gemini API ${status}: request failed`;
+}
+
 export async function handleCourseRequest(request, env) {
   let input;
   try {
@@ -159,7 +168,11 @@ export async function handleCourseRequest(request, env) {
 
   const key = env?.GEMINI_API_KEY;
   if (!key) {
-    return Response.json({ course: fallbackCourse(input), demo: true });
+    return Response.json({
+      course: fallbackCourse(input),
+      demo: true,
+      demoReason: "GEMINI_API_KEY is not visible to the Worker.",
+    });
   }
 
   try {
@@ -184,11 +197,12 @@ export async function handleCourseRequest(request, env) {
 
     if (!response.ok) {
       const detail = await response.text();
+      const message = geminiErrorMessage(response.status, detail);
       console.error("Gemini error", response.status, detail);
       return Response.json({
         course: fallbackCourse(input),
         demo: true,
-        warning: "Gemini request failed; showing demo course.",
+        demoReason: message,
       });
     }
 
@@ -202,7 +216,7 @@ export async function handleCourseRequest(request, env) {
     return Response.json({
       course: fallbackCourse(input),
       demo: true,
-      warning: "Generation failed; showing demo course.",
+      demoReason: `Generation failed: ${error?.message || "unknown error"}`,
     });
   }
 }

@@ -6,6 +6,14 @@ import { handleCourseRequest } from "./server/course";
 const handler = async (request, env) => {
   const url = new URL(request.url);
 
+  if (url.pathname === "/api/status" && request.method === "GET") {
+    return Response.json({
+      ok: true,
+      geminiConfigured: Boolean(env?.GEMINI_API_KEY),
+      everyAppDev: env?.EVERYAPP_DEV === "1" || env?.EVERYAPP_DEV === "true",
+    });
+  }
+
   if (url.pathname === "/api/course" && request.method === "POST") {
     return handleCourseRequest(request, env);
   }
