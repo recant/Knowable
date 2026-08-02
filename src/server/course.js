@@ -1,72 +1,60 @@
-const LAB_KINDS = new Set(["curve", "probability", "vector", "projectile"]);
-const FUNCTION_TYPES = new Set(["linear", "quadratic", "exponential", "logistic", "sine"]);
-
 function fallbackCourse({ topic, why, success, background }) {
   const names = [
     "Build the mental model",
-    "See the moving parts",
+    "See the system move",
     "Change one variable",
     "Predict before calculating",
     "Connect representations",
-    "Find the edge cases",
-    "Combine the ideas",
-    "Solve a realistic problem",
+    "Break the model",
+    "Transfer the idea",
     "Prove you can use it",
   ];
-  const kinds = ["curve", "curve", "probability", "vector", "curve", "projectile", "curve", "probability", "curve"];
-  const functions = ["linear", "quadratic", "linear", "linear", "exponential", "linear", "logistic", "linear", "sine"];
 
   return {
     title: topic,
     subtitle: "A personalized path from intuition to practical mastery",
     learnerGoal: why || `Understand ${topic} well enough to use it`,
-    successMetric: success || `Solve a realistic ${topic} problem without outside help`,
+    successMetric: success || `Use ${topic} confidently without outside help`,
     lessons: names.map((name, index) => ({
       title: `${index + 1}. ${name}`,
       durationMinutes: 10,
       objective: `Build one concrete piece of your ${topic} mental model and connect it to what came before.`,
-      whyItMatters: `You said you want to learn ${topic}${why ? ` because ${why}` : ""}. This lesson turns that goal into something you can manipulate, not just memorize.`,
-      explanation: `Start with a simple model. Change one assumption at a time, predict what should happen, then compare your prediction with the visualization. ${background ? `We will assume this starting point: ${background}.` : "No prior knowledge is required."}`,
-      challenge: {
-        question: "What is the best next move when a variable changes in the model?",
-        options: ["Predict the direction first", "Memorize a formula", "Ignore the change"],
-        answerIndex: 0,
-        explanation: "Prediction exposes your mental model before the visualization gives you the answer.",
+      whyItMatters: `This lesson is here because your goal is: ${why || `understand ${topic}`}.`,
+      explanation: `Start from an intuitive model, manipulate it, and explain what changed. ${background ? `Build from what you already know: ${background}.` : "No prior knowledge is assumed."}`,
+      keyIdeas: [
+        `Identify the mechanism behind this part of ${topic}.`,
+        "Predict what will change before you manipulate the model.",
+        "Explain the result in plain language.",
+      ],
+      visualBrief: `Create a clean visual explanation that makes the core relationship in lesson ${index + 1} of ${topic} immediately legible.`,
+      labBrief: {
+        title: `Explore ${topic}`,
+        purpose: `Make the central idea of this lesson tangible through direct manipulation.`,
+        interaction: "Choose the most useful interaction for this concept: dragging, toggles, simulation, construction, annotation, matching, timeline, spatial manipulation, or another appropriate mechanic.",
       },
-      lab: {
-        kind: kinds[index],
-        title: "Play with the model",
-        instruction: "Move the controls. Before each move, predict how the output should change.",
-        functionType: functions[index],
-        param1Label: index % 2 ? "strength" : "rate",
-        param1Min: 0.2,
-        param1Max: 3,
-        param1Default: 1,
-        param1Step: 0.1,
-        param2Label: index % 2 ? "offset" : "starting value",
-        param2Min: -2,
-        param2Max: 4,
-        param2Default: 1,
-        param2Step: 0.1,
-        xLabel: "input",
-        yLabel: "output",
-        prediction: "What do you expect to happen when you increase the first control?",
+      tutorSeed: {
+        openingQuestion: `Explain the main idea of this lesson in your own words. What is actually happening?`,
+        masteryCriteria: [
+          "Explains the mechanism rather than repeating vocabulary",
+          "Can predict what changes when a relevant variable changes",
+          "Can apply the idea to a slightly different example",
+        ],
       },
     })),
   };
 }
 
 function buildPrompt(input) {
-  return `You are the curriculum engine for Knowable, an interactive learning app.
+  return `You are the curriculum designer for Knowable, a premium interactive learning product.
 
 Create a personalized course about: ${input.topic}
 Why the learner wants it: ${input.why || "not specified"}
 How they measure success: ${input.success || "not specified"}
 What they already know: ${input.background || "not specified"}
 
-IMPORTANT OUTPUT RULE: Return ONLY one valid JSON object. No markdown. No code fences. No commentary before or after it.
+Return ONLY one valid JSON object. No markdown, code fences, or commentary.
 
-The JSON must have this exact overall shape:
+Use this shape:
 {
   "title": "string",
   "subtitle": "string",
@@ -78,47 +66,33 @@ The JSON must have this exact overall shape:
       "durationMinutes": 10,
       "objective": "string",
       "whyItMatters": "string",
-      "explanation": "string under 120 words",
-      "challenge": {
-        "question": "string",
-        "options": ["string", "string", "string"],
-        "answerIndex": 0,
-        "explanation": "string"
-      },
-      "lab": {
-        "kind": "curve | probability | vector | projectile",
+      "explanation": "string, 80-150 words",
+      "keyIdeas": ["string", "string", "string"],
+      "visualBrief": "specific description of the diagram/illustration that would make this lesson click",
+      "labBrief": {
         "title": "string",
-        "instruction": "string",
-        "functionType": "linear | quadratic | exponential | logistic | sine",
-        "param1Label": "string",
-        "param1Min": 0,
-        "param1Max": 3,
-        "param1Default": 1,
-        "param1Step": 0.1,
-        "param2Label": "string",
-        "param2Min": -2,
-        "param2Max": 4,
-        "param2Default": 1,
-        "param2Step": 0.1,
-        "xLabel": "string",
-        "yLabel": "string",
-        "prediction": "string"
+        "purpose": "what the learner should discover by interacting",
+        "interaction": "the best interaction design for this exact concept"
+      },
+      "tutorSeed": {
+        "openingQuestion": "an open-ended question that tests understanding",
+        "masteryCriteria": ["criterion", "criterion", "criterion"]
       }
     }
   ]
 }
 
-Course rules:
-- Return 8 to 10 lessons, each exactly 10 minutes.
-- Make lessons a dependency chain; later lessons should use earlier ideas.
-- Optimize specifically for the learner's stated reason and success metric.
-- Teach through prediction, manipulation, feedback, and transfer rather than long exposition.
-- Every lesson needs one conceptual multiple-choice check and one interactive lab.
-- Use curve for relationships/growth/functions/biology/economics; probability for uncertainty/sampling; vector for geometry/forces/embeddings; projectile for trajectories/motion/optimization.
-- For non-curve labs, still fill functionType and every numeric field with sensible values because the trusted renderer expects them.
-- answerIndex is zero-based and must point to an existing option.
-- The final lesson must directly test the learner's success metric.
-- Do not generate JavaScript, HTML, or executable code. Only generate the JSON data object.`;
+Rules:
+- Return exactly 8 lessons, each about 10 minutes.
+- Build a dependency chain; later lessons must use earlier ideas.
+- Optimize for THIS learner's goal and success metric.
+- Prefer visual intuition, manipulation, prediction, and transfer over exposition.
+- Do not force every subject into charts. The labBrief can describe ANY browser-based interactive lab that would teach the concept best.
+- Examples of valid labs: draggable tangent explorer, molecule builder, orbit simulator, supply/demand market, neural-network playground, timeline, circuit builder, grammar parser, anatomy labeling, algorithm visualizer, music keyboard, probability experiment, map, matching exercise, or something novel.
+- The visualBrief should describe a useful diagram, not decorative art.
+- The tutor question must require explanation, prediction, or transfer rather than recall.
+- The final lesson must directly test the learner's stated success metric.
+- Do NOT generate HTML or JavaScript here; keep this course request compact. Labs are generated lazily when a lesson opens.`;
 }
 
 function extractJson(text) {
@@ -131,68 +105,59 @@ function extractJson(text) {
   return JSON.parse(cleaned.slice(first, last + 1));
 }
 
-function number(value, fallback) {
-  return Number.isFinite(Number(value)) ? Number(value) : fallback;
-}
-
-function normalizeLab(lab = {}) {
-  const kind = LAB_KINDS.has(lab.kind) ? lab.kind : "curve";
-  const functionType = FUNCTION_TYPES.has(lab.functionType) ? lab.functionType : "linear";
-  const p1Min = number(lab.param1Min, 0.2);
-  const p1Max = number(lab.param1Max, 3);
-  const p2Min = number(lab.param2Min, -2);
-  const p2Max = number(lab.param2Max, 4);
-  return {
-    kind,
-    title: String(lab.title || "Explore the model"),
-    instruction: String(lab.instruction || "Move the controls and observe what changes."),
-    functionType,
-    param1Label: String(lab.param1Label || "rate"),
-    param1Min: Math.min(p1Min, p1Max),
-    param1Max: Math.max(p1Min, p1Max),
-    param1Default: number(lab.param1Default, 1),
-    param1Step: Math.max(0.01, number(lab.param1Step, 0.1)),
-    param2Label: String(lab.param2Label || "offset"),
-    param2Min: Math.min(p2Min, p2Max),
-    param2Max: Math.max(p2Min, p2Max),
-    param2Default: number(lab.param2Default, 1),
-    param2Step: Math.max(0.01, number(lab.param2Step, 0.1)),
-    xLabel: String(lab.xLabel || "input"),
-    yLabel: String(lab.yLabel || "output"),
-    prediction: String(lab.prediction || "Predict what will change before moving the control."),
-  };
+function stringArray(value, fallback) {
+  const values = Array.isArray(value) ? value.map((x) => String(x).trim()).filter(Boolean) : [];
+  return values.length ? values.slice(0, 5) : fallback;
 }
 
 function normalizeCourse(raw, input) {
-  if (!raw || typeof raw !== "object" || !Array.isArray(raw.lessons) || raw.lessons.length < 1) {
+  if (!raw || typeof raw !== "object" || !Array.isArray(raw.lessons)) {
     throw new Error("Gemini returned an invalid course shape");
   }
 
-  const lessons = raw.lessons.slice(0, 10).map((lesson, index) => {
-    const options = Array.isArray(lesson?.challenge?.options)
-      ? lesson.challenge.options.map(String).slice(0, 4)
-      : [];
-    while (options.length < 3) options.push(["It increases", "It decreases", "It depends"][options.length]);
-    const requestedAnswer = Math.trunc(number(lesson?.challenge?.answerIndex, 0));
-    const answerIndex = Math.max(0, Math.min(options.length - 1, requestedAnswer));
+  const lessons = raw.lessons.slice(0, 8).map((lesson, index) => ({
+    title: String(lesson?.title || `${index + 1}. Lesson ${index + 1}`),
+    durationMinutes: 10,
+    objective: String(lesson?.objective || `Understand the next part of ${input.topic}.`),
+    whyItMatters: String(lesson?.whyItMatters || `This connects ${input.topic} to your goal.`),
+    explanation: String(
+      lesson?.explanation ||
+        "Build the intuition by changing one thing at a time, making a prediction, and explaining the result.",
+    ),
+    keyIdeas: stringArray(lesson?.keyIdeas, [
+      `Identify the mechanism behind this part of ${input.topic}.`,
+      "Predict how the system changes.",
+      "Explain the result in plain language.",
+    ]),
+    visualBrief: String(
+      lesson?.visualBrief ||
+        `Create a clean explanatory diagram for the central relationship in this ${input.topic} lesson.`,
+    ),
+    labBrief: {
+      title: String(lesson?.labBrief?.title || "Interactive exploration"),
+      purpose: String(
+        lesson?.labBrief?.purpose ||
+          "Turn the lesson's core abstraction into something the learner can manipulate.",
+      ),
+      interaction: String(
+        lesson?.labBrief?.interaction ||
+          "Choose the interaction that makes the causal relationship easiest to discover.",
+      ),
+    },
+    tutorSeed: {
+      openingQuestion: String(
+        lesson?.tutorSeed?.openingQuestion ||
+          "Explain the central idea of this lesson in your own words. What is actually happening?",
+      ),
+      masteryCriteria: stringArray(lesson?.tutorSeed?.masteryCriteria, [
+        "Explains the mechanism",
+        "Can make a correct prediction",
+        "Can transfer the idea to a new example",
+      ]),
+    },
+  }));
 
-    return {
-      title: String(lesson?.title || `${index + 1}. Lesson ${index + 1}`),
-      durationMinutes: 10,
-      objective: String(lesson?.objective || `Understand the next part of ${input.topic}.`),
-      whyItMatters: String(lesson?.whyItMatters || `This connects ${input.topic} to your goal.`),
-      explanation: String(lesson?.explanation || "Build the intuition by changing one thing at a time and predicting the result."),
-      challenge: {
-        question: String(lesson?.challenge?.question || "What should happen next?"),
-        options,
-        answerIndex,
-        explanation: String(lesson?.challenge?.explanation || "Use the model you just built to justify the answer."),
-      },
-      lab: normalizeLab(lesson?.lab),
-    };
-  });
-
-  if (lessons.length < 8) throw new Error(`Gemini returned only ${lessons.length} lessons`);
+  if (lessons.length < 6) throw new Error(`Gemini returned only ${lessons.length} lessons`);
 
   return {
     title: String(raw.title || input.topic),
@@ -250,12 +215,11 @@ export async function handleCourseRequest(request, env) {
 
     if (!response.ok) {
       const detail = await response.text();
-      const message = geminiErrorMessage(response.status, detail);
-      console.error("Gemini error", response.status, detail);
+      console.error("Gemini course error", response.status, detail);
       return Response.json({
         course: fallbackCourse(input),
         demo: true,
-        demoReason: message,
+        demoReason: geminiErrorMessage(response.status, detail),
       });
     }
 
@@ -264,11 +228,11 @@ export async function handleCourseRequest(request, env) {
       ?.map((part) => part?.text || "")
       .join("")
       .trim();
+
     const raw = extractJson(text);
-    const course = normalizeCourse(raw, input);
-    return Response.json({ course, demo: false });
+    return Response.json({ course: normalizeCourse(raw, input), demo: false });
   } catch (error) {
-    console.error("Gemini generation/parsing error", error);
+    console.error("Gemini course generation/parsing error", error);
     return Response.json({
       course: fallbackCourse(input),
       demo: true,
