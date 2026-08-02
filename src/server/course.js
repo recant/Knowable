@@ -187,9 +187,12 @@ export async function handleCourseRequest(request, env) {
         body: JSON.stringify({
           contents: [{ role: "user", parts: [{ text: buildPrompt(input) }] }],
           generationConfig: {
-            temperature: 0.75,
-            responseMimeType: "application/json",
-            responseSchema: COURSE_SCHEMA,
+            responseFormat: {
+              text: {
+                mimeType: "application/json",
+                schema: COURSE_SCHEMA,
+              },
+            },
           },
         }),
       },
