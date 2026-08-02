@@ -1,3 +1,5 @@
+import { generateGeminiText } from "./gemini";
+
 function fallbackCourse({ topic, why, success, background }) {
   const names = [
     "Build the mental model",
@@ -176,13 +178,13 @@ function normalizeCourse(raw, input) {
   };
 }
 
-function geminiErrorMessage(status, detail) {
+function geminiErrorMessage(result) {
   try {
-    const parsed = JSON.parse(detail);
+    const parsed = JSON.parse(result?.detail || "");
     const message = parsed?.error?.message;
-    if (message) return `Gemini API ${status}: ${message}`;
+    if (message) return `Gemini API ${result.status}: ${message}`;
   } catch {}
-  return `Gemini API ${status}: request failed`;
+  return `Gemini API ${result?.status || "error"}: request failed`;
 }
 
 export async function handleCourseRequest(request, env) {
@@ -201,25 +203,13 @@ export async function handleCourseRequest(request, env) {
   }
 
   try {
-    const response = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-        body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: buildPrompt(input) }] }] }),
-      },
-    );
-
-    if (!response.ok) {
-      const detail = await response.text();
-      console.error("Gemini course error", response.status, detail);
-      return Response.json({ course: fallbackCourse(input), demo: true, demoReason: geminiErrorMessage(response.status, detail) });
+    const generated = await generateGeminiText(key, buildPrompt(input), { label: "Course" });
+    if (!generated.ok) {
+      return Response.json({ course: fallbackCourse(input), demo: true, demoReason: geminiErrorMessage(generated) });
     }
 
-    const data = await response.json();
-    const text = data?.candidates?.[0]?.content?.parts?.map((part) => part?.text || "").join("").trim();
-    const raw = extractJson(text);
-    return Response.json({ course: normalizeCourse(raw, input), demo: false });
+    const raw = extractJson(generated.text);
+    return Response.json({ course: normalizeCourse(raw, input), demo: false, model: generated.model });
   } catch (error) {
     console.error("Gemini course generation/parsing error", error);
     return Response.json({ course: fallbackCourse(input), demo: true, demoReason: `Generation failed: ${error?.message || "unknown error"}` });
