@@ -1,3 +1,5 @@
+import { generateGeminiText } from "./gemini";
+
 const ACTIONS = new Set(["explain", "question", "visual", "mastered"]);
 
 function extractJson(text) {
@@ -202,26 +204,24 @@ export async function handleTeachRequest(request, env) {
   if (!key) return Response.json(demoTurn({ lesson: input.lesson, transcript, labEvents }));
 
   try {
-    const response = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-        body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: buildPrompt({ ...input, transcript, labEvents }) }] }],
-        }),
-      },
+    const generated = await generateGeminiText(
+      key,
+      buildPrompt({ ...input, transcript, labEvents }),
+      { label: "Teaching" },
     );
 
-    if (!response.ok) {
-      const detail = await response.text();
-      console.error("Teaching model error", response.status, detail);
-      return Response.json({ error: "Tutor temporarily unavailable", code: `gemini_${response.status}` }, { status: 502 });
+    if (!generated.ok) {
+      console.warn("Teaching: both Gemini models unavailable; using deterministic teaching fallback");
+      return Response.json(demoTurn({ lesson: input.lesson, transcript, labEvents }));
     }
 
-    const data = await response.json();
-    const text = data?.candidates?.[0]?.content?.parts?.map((part) => part?.text || "").join("").trim();
-    const raw = extractJson(text);
+    let raw;
+    try {
+      raw = extractJson(generated.text);
+    } catch (error) {
+      console.error("Teaching JSON parse failure", generated.model, generated.text);
+      return Response.json(demoTurn({ lesson: input.lesson, transcript, labEvents }));
+    }
 
     const userTurns = transcript.filter((message) => message.role === "user").length;
     const confidence = Math.max(0, Math.min(1, Number(raw?.confidence || 0)));
@@ -249,9 +249,10 @@ export async function handleTeachRequest(request, env) {
       pitfalls: uniqueStrings(raw?.pitfalls),
       coveredConcepts: uniqueStrings(raw?.coveredConcepts),
       artifactBrief,
+      model: generated.model,
     });
   } catch (error) {
     console.error("Teaching loop error", error);
-    return Response.json({ error: "Tutor temporarily unavailable", code: "tutor_parse_error" }, { status: 502 });
+    return Response.json(demoTurn({ lesson: input.lesson, transcript, labEvents }));
   }
 }
