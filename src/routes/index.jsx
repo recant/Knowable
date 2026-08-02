@@ -29,7 +29,7 @@ function serializableSessions(sessions) {
       {
         ...session,
         loading: false,
-        error: "",
+        error: false,
         messages: (session?.messages || []).map(({ artifact, ...message }) => message),
       },
     ]),
@@ -39,10 +39,52 @@ function serializableSessions(sessions) {
 function TeachingArtifact({ artifact }) {
   if (!artifact?.visualSvg) return null;
   return (
-    <figure className="chatArtifact visualArtifact" style={{ marginTop: 14 }}>
-      <div className="artifactVisual" dangerouslySetInnerHTML={{ __html: artifact.visualSvg }} />
+    <figure className="guidedVisual">
+      <div dangerouslySetInnerHTML={{ __html: artifact.visualSvg }} />
       {artifact?.brief?.task && <figcaption>{artifact.brief.task}</figcaption>}
     </figure>
+  );
+}
+
+function TutorIntro({ session, onRetry }) {
+  const intro = session?.messages?.[0];
+
+  if (!intro && session?.loading) {
+    return (
+      <section className="tutorIntro tutorLoading">
+        <div className="teacherAvatar">K</div>
+        <div>
+          <span className="tinyLabel">Your tutor is setting up the experiment</span>
+          <div className="thinkingDots"><i /><i /><i /></div>
+        </div>
+      </section>
+    );
+  }
+
+  if (!intro && session?.error) {
+    return (
+      <section className="tutorIntro reconnectCard">
+        <div className="teacherAvatar">K</div>
+        <div className="reconnectCopy">
+          <strong>Tutor connection paused.</strong>
+          <span>Your lesson is saved.</span>
+        </div>
+        <button onClick={onRetry}>Retry</button>
+      </section>
+    );
+  }
+
+  if (!intro) return null;
+
+  return (
+    <section className="tutorIntro">
+      <div className="teacherAvatar">K</div>
+      <div className="introCopy">
+        <span className="tinyLabel">Before you try it</span>
+        <p>{intro.content}</p>
+        {intro.artifact && <TeachingArtifact artifact={intro.artifact} />}
+      </div>
+    </section>
   );
 }
 
@@ -50,49 +92,29 @@ function PrimaryLab({ lesson, lab, onRetry }) {
   const brief = lesson?.labBrief || {};
 
   return (
-    <section
-      style={{
-        background: "#fff",
-        border: "1px solid #dedfd8",
-        borderRadius: 22,
-        overflow: "hidden",
-        boxShadow: "0 16px 45px rgba(20,30,20,.06)",
-      }}
-    >
-      <div
-        style={{
-          padding: "17px 20px",
-          borderBottom: "1px solid #ecece6",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: 20,
-        }}
-      >
+    <section className="primaryLab">
+      <header className="labTopline">
         <div>
-          <span style={{ display: "block", fontSize: 10, fontWeight: 850, letterSpacing: ".13em", textTransform: "uppercase", color: "#788078" }}>
-            Interactive lesson
-          </span>
-          <strong style={{ display: "block", marginTop: 4, fontSize: 19 }}>{brief.title || "Explore the idea"}</strong>
+          <span className="tinyLabel">Interactive experiment</span>
+          <h2>{brief.title || "Try the idea"}</h2>
         </div>
-        <span style={{ fontSize: 12, color: "#697069", maxWidth: 430, textAlign: "right", lineHeight: 1.4 }}>
-          {brief.learnerTask || brief.purpose || "Try the main action and look for the pattern."}
-        </span>
-      </div>
+        <div className="labTask">
+          <b>Do this</b>
+          <span>{brief.learnerTask || brief.purpose || "Try the main action a few times and watch what changes."}</span>
+        </div>
+      </header>
 
       {lab?.loading && (
-        <div style={{ height: "500px", display: "grid", placeItems: "center", background: "#fafaf6", color: "#747a73" }}>
-          Building this lesson’s interactive world…
+        <div className="labLoading">
+          <div className="labLoadingOrb" />
+          <strong>Building the experiment…</strong>
         </div>
       )}
 
       {lab?.error && (
-        <div style={{ height: "500px", display: "grid", placeItems: "center", background: "#fafaf6" }}>
-          <div style={{ textAlign: "center", maxWidth: 420 }}>
-            <strong>Lab generation failed.</strong>
-            <p style={{ color: "#666d65" }}>This lesson is supposed to be interactive, so don’t continue with a blank substitute.</p>
-            <button className="primaryButton" onClick={onRetry}>Retry lab</button>
-          </div>
+        <div className="labLoading">
+          <strong>The experiment didn’t load.</strong>
+          <button className="secondaryButton" onClick={onRetry}>Try again</button>
         </div>
       )}
 
@@ -101,7 +123,7 @@ function PrimaryLab({ lesson, lab, onRetry }) {
           sandbox="allow-scripts"
           srcDoc={lab.html}
           title={`${stripNumber(lesson?.title)} interactive lab`}
-          style={{ display: "block", width: "100%", height: "500px", border: 0, background: "#f7f7f2" }}
+          className="primaryLabFrame"
         />
       )}
     </section>
@@ -109,86 +131,79 @@ function PrimaryLab({ lesson, lab, onRetry }) {
 }
 
 function Conversation({ lesson, session, draft, setDraft, onSend, onRetry, notesState, onDownloadNotes, onNext, isLast }) {
-  const messages = session?.messages || [];
+  const messages = (session?.messages || []).slice(1);
 
   return (
-    <section style={{ marginTop: 18 }}>
-      <div
-        style={{
-          background: "#fff",
-          border: "1px solid #dedfd8",
-          borderRadius: 20,
-          overflow: "hidden",
-        }}
-      >
-        <div style={{ padding: "14px 18px", borderBottom: "1px solid #ecece6", display: "flex", alignItems: "center", gap: 10 }}>
-          <div className="teacherMark" style={{ width: 30, height: 30, flex: "0 0 auto" }}>K</div>
-          <div>
-            <strong style={{ fontSize: 14 }}>AI tutor</strong>
-            <span style={{ display: "block", fontSize: 11, color: "#7b817a" }}>Watching the same lab you are</span>
+    <section className="guidedConversation">
+      <header className="conversationHeader">
+        <div className="teacherAvatar small">K</div>
+        <div>
+          <strong>Talk through what happened</strong>
+          <span>The tutor uses your actual lab results.</span>
+        </div>
+      </header>
+
+      <div className="conversationBody">
+        {messages.length === 0 && !session?.loading && !session?.error && (
+          <div className="waitingPrompt">Try the experiment above. The tutor will respond to checkpoints, or you can ask a question at any time.</div>
+        )}
+
+        {messages.map((message, index) => (
+          <div key={`${index}-${message.role}`} className={`guidedTurn ${message.role}`}>
+            {message.role === "assistant" && <div className="teacherAvatar small">K</div>}
+            <div className="guidedBubble">
+              {message.content}
+              {message.artifact && <TeachingArtifact artifact={message.artifact} />}
+            </div>
           </div>
-        </div>
+        ))}
 
-        <div style={{ maxHeight: 285, overflowY: "auto", padding: "18px 20px" }}>
-          {messages.map((message, index) => (
-            <div key={`${index}-${message.role}`} className={`turn ${message.role}`} style={{ marginBottom: 14 }}>
-              {message.role === "assistant" && <div className="teacherMark">K</div>}
-              <div className="turnBody">
-                <div className="messageText">{message.content}</div>
-                {message.artifact && <TeachingArtifact artifact={message.artifact} />}
-              </div>
-            </div>
-          ))}
+        {session?.loading && session?.messages?.length > 0 && (
+          <div className="guidedTurn assistant">
+            <div className="teacherAvatar small">K</div>
+            <div className="guidedBubble thinkingBubble"><div className="thinkingDots"><i /><i /><i /></div></div>
+          </div>
+        )}
 
-          {session?.loading && (
-            <div className="turn assistant thinkingTurn">
-              <div className="teacherMark">K</div>
-              <div className="thinkingDots"><i /><i /><i /></div>
-            </div>
-          )}
-
-          {session?.error && (
-            <div style={{ background: "#fff2ed", border: "1px solid #efd4ca", borderRadius: 12, padding: 13, color: "#7d493b", fontSize: 13 }}>
-              <strong>The AI tutor didn’t answer.</strong> {session.error}
-              <button onClick={onRetry} style={{ marginLeft: 10, border: 0, background: "transparent", textDecoration: "underline", cursor: "pointer", fontWeight: 750 }}>Retry</button>
-            </div>
-          )}
-        </div>
-
-        {!session?.mastered && (
-          <div style={{ borderTop: "1px solid #ecece6", padding: 12, background: "#fafaf6" }}>
-            <div className="conversationComposer" style={{ margin: 0 }}>
-              <textarea
-                value={draft}
-                onChange={(event) => setDraft(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey) {
-                    event.preventDefault();
-                    onSend();
-                  }
-                }}
-                disabled={session?.loading}
-                placeholder="Tell the tutor what you noticed, ask what it means, or say you’re confused…"
-              />
-              <button onClick={onSend} disabled={!draft.trim() || session?.loading} aria-label="Send message">↑</button>
-            </div>
+        {session?.error && session?.messages?.length > 0 && (
+          <div className="quietReconnect">
+            <span>Tutor paused for a moment.</span>
+            <button onClick={onRetry}>Retry</button>
           </div>
         )}
       </div>
 
+      {!session?.mastered && (
+        <div className="guidedComposer">
+          <textarea
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                onSend();
+              }
+            }}
+            disabled={session?.loading}
+            placeholder="Answer the tutor, ask why, or say what confused you…"
+          />
+          <button onClick={onSend} disabled={!draft.trim() || session?.loading} aria-label="Send message">↑</button>
+        </div>
+      )}
+
       {session?.mastered && (
-        <section className="lessonCompleteCard" style={{ marginTop: 18 }}>
+        <section className="lessonCompleteCard simplifiedComplete">
           <div className="completeIcon">✓</div>
           <div className="completeCopy">
             <span>Lesson mastered</span>
             <h3>{stripNumber(lesson?.title)}</h3>
-            <p>Your PDF notes include what you learned and the specific mistakes you made along the way.</p>
+            <p>Your notes include the ideas you learned and the specific mistakes you made along the way.</p>
           </div>
           <div className="completeActions">
             {notesState?.loading && <button className="secondaryButton" disabled>Preparing PDF…</button>}
             {notesState?.url && (
               <a className="secondaryButton" href={notesState.url} download={notesState.filename || "knowable-lesson-notes.pdf"}>
-                Download lesson notes
+                Download notes
               </a>
             )}
             {notesState?.error && <button className="secondaryButton" onClick={onDownloadNotes}>Retry notes</button>}
@@ -197,6 +212,32 @@ function Conversation({ lesson, session, draft, setDraft, onSend, onRetry, notes
         </section>
       )}
     </section>
+  );
+}
+
+function CourseStyles() {
+  return (
+    <style>{`
+      .lessonApp{min-height:100vh;background:#f6f6f1;color:#111;}
+      .lessonBar{height:68px;background:rgba(246,246,241,.95);backdrop-filter:blur(12px);border-bottom:1px solid #e0e1da;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:0 28px;position:sticky;top:0;z-index:20;}
+      .lessonBar .brand{justify-self:start}.courseName{font-size:13px;color:#70766f;max-width:320px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+      .lessonCounter{justify-self:center;display:flex;align-items:center;gap:10px;font-size:12px;font-weight:750;color:#50564f;background:white;border:1px solid #dedfd8;border-radius:999px;padding:8px 12px;}
+      .lessonCounter i{display:block;width:72px;height:4px;border-radius:99px;background:#e7e8e2;overflow:hidden}.lessonCounter i span{display:block;height:100%;background:#9acb24;border-radius:inherit;}
+      .courseExit{justify-self:end;border:0;background:transparent;font-size:12px;color:#737971;cursor:pointer;}
+      .lessonCanvas{max-width:930px;margin:0 auto;padding:48px 24px 90px;}
+      .lessonHeading{margin-bottom:26px}.lessonHeading span{font-size:11px;text-transform:uppercase;letter-spacing:.12em;font-weight:850;color:#7d847b}.lessonHeading h1{font-size:clamp(34px,4vw,52px);letter-spacing:-.045em;margin:7px 0 8px;line-height:1.02}.lessonHeading p{margin:0;color:#6b716a;font-size:15px;line-height:1.5;max-width:680px;}
+      .tutorIntro{display:flex;gap:15px;align-items:flex-start;background:#fff;border:1px solid #dedfd8;border-radius:18px;padding:19px 21px;margin-bottom:18px;box-shadow:0 10px 35px rgba(20,30,20,.04)}
+      .teacherAvatar{width:36px;height:36px;border-radius:11px;background:#d7ff59;border:1px solid #b9de43;display:grid;place-items:center;font-weight:900;flex:0 0 auto}.teacherAvatar.small{width:28px;height:28px;border-radius:9px;font-size:12px;}
+      .tinyLabel{display:block;font-size:10px;font-weight:850;letter-spacing:.11em;text-transform:uppercase;color:#7b8279}.introCopy{flex:1}.introCopy p{margin:6px 0 0;font-size:18px;line-height:1.55;color:#242724;max-width:760px;}
+      .tutorLoading{align-items:center;min-height:78px}.reconnectCard{align-items:center}.reconnectCopy{flex:1;display:flex;flex-direction:column;gap:2px}.reconnectCopy span{font-size:12px;color:#7d837c}.reconnectCard button,.quietReconnect button{border:0;background:transparent;font-weight:750;text-decoration:underline;cursor:pointer;color:#4d554b;}
+      .primaryLab{background:white;border:1px solid #d9dbd3;border-radius:22px;overflow:hidden;box-shadow:0 18px 52px rgba(20,30,20,.065);margin-bottom:18px;}
+      .labTopline{display:grid;grid-template-columns:1fr minmax(260px,420px);align-items:center;gap:24px;padding:18px 21px;border-bottom:1px solid #ecece6}.labTopline h2{font-size:21px;letter-spacing:-.02em;margin:4px 0 0}.labTask{display:flex;gap:10px;align-items:flex-start;font-size:12px;line-height:1.42;color:#626961}.labTask b{text-transform:uppercase;font-size:9px;letter-spacing:.09em;color:#778078;white-space:nowrap;padding-top:2px}.primaryLabFrame{display:block;width:100%;height:500px;border:0;background:#f8f8f3}.labLoading{height:500px;display:flex;flex-direction:column;gap:12px;align-items:center;justify-content:center;color:#6e756d;background:#fafaf6}.labLoadingOrb{width:34px;height:34px;border-radius:50%;border:3px solid #e2e5db;border-top-color:#9acb24;animation:spin .9s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+      .guidedConversation{background:white;border:1px solid #dedfd8;border-radius:18px;overflow:hidden}.conversationHeader{display:flex;gap:10px;align-items:center;padding:14px 17px;border-bottom:1px solid #ecece6}.conversationHeader strong{display:block;font-size:13px}.conversationHeader span{display:block;font-size:11px;color:#7a8179;margin-top:2px}.conversationBody{padding:18px;display:flex;flex-direction:column;gap:13px;max-height:390px;overflow:auto}.waitingPrompt{font-size:13px;color:#7a8179;background:#f6f7f2;border-radius:12px;padding:13px 15px;}
+      .guidedTurn{display:flex;gap:9px;align-items:flex-start}.guidedTurn.user{justify-content:flex-end}.guidedBubble{max-width:76%;font-size:15px;line-height:1.5;padding:11px 14px;border-radius:15px;background:#f1f3ed;color:#252925}.guidedTurn.user .guidedBubble{background:#e9eddf}.guidedTurn.assistant .guidedBubble{background:#f6f7f2}.thinkingBubble{min-width:60px}.quietReconnect{display:flex;align-items:center;justify-content:space-between;gap:20px;background:#f7f7f3;border-radius:11px;padding:10px 12px;font-size:12px;color:#747b73;}
+      .guidedComposer{border-top:1px solid #ecece6;padding:12px;background:#fafaf7;display:flex;gap:9px}.guidedComposer textarea{flex:1;min-height:62px;max-height:140px;resize:vertical;border:1px solid #d9dcd3;border-radius:13px;background:white;padding:12px 13px;outline:none;font-size:14px;line-height:1.4}.guidedComposer textarea:focus{border-color:#a7bd66;box-shadow:0 0 0 3px rgba(180,214,79,.15)}.guidedComposer button{width:42px;height:42px;align-self:flex-end;border:0;border-radius:12px;background:#171917;color:white;font-size:20px;cursor:pointer}.guidedComposer button:disabled{opacity:.3;cursor:default}
+      .guidedVisual{margin:12px 0 0;background:white;border:1px solid #dfe1da;border-radius:13px;overflow:hidden}.guidedVisual>div{padding:10px}.guidedVisual svg{display:block;width:100%;height:auto}.guidedVisual figcaption{padding:9px 12px;border-top:1px solid #eceee7;color:#747b73;font-size:11px}.simplifiedComplete{margin:0;border:0;border-top:1px solid #ecece6;border-radius:0;box-shadow:none;}
+      @media(max-width:760px){.lessonBar{grid-template-columns:auto 1fr auto;padding:0 14px}.courseName{display:none}.lessonCounter{justify-self:center}.lessonCounter i{width:42px}.lessonCanvas{padding:30px 14px 70px}.labTopline{grid-template-columns:1fr}.labTask{border-top:1px solid #ecece6;padding-top:12px}.primaryLabFrame,.labLoading{height:430px}.introCopy p{font-size:16px}.guidedBubble{max-width:88%}.courseExit{font-size:0}.courseExit:after{content:'Exit';font-size:12px}}
+    `}</style>
   );
 }
 
@@ -279,109 +320,119 @@ function Home() {
     if (!lesson || !course) return;
     if (!force && (labs[index]?.loading || labs[index]?.html)) return;
 
-    setLabs((previous) => ({ ...previous, [index]: { loading: true, error: "", html: "" } }));
+    setLabs((previous) => ({ ...previous, [index]: { loading: true, error: false, html: "" } }));
     try {
       const response = await fetch("/api/lab", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          lesson,
-          course,
-          brief: { kind: "lab", ...(lesson.labBrief || {}) },
-        }),
+        body: JSON.stringify({ lesson, course, brief: { kind: "lab", ...(lesson.labBrief || {}) } }),
       });
       const data = await response.json();
-      if (!response.ok || !data.labHtml) throw new Error(data?.error || "Lab generation failed");
-      setLabs((previous) => ({ ...previous, [index]: { loading: false, error: "", html: data.labHtml } }));
-    } catch (err) {
-      setLabs((previous) => ({ ...previous, [index]: { loading: false, error: err?.message || "Lab generation failed", html: "" } }));
+      if (!response.ok || !data.labHtml) throw new Error("Lab generation failed");
+      setLabs((previous) => ({ ...previous, [index]: { loading: false, error: false, html: data.labHtml } }));
+    } catch {
+      setLabs((previous) => ({ ...previous, [index]: { loading: false, error: true, html: "" } }));
     }
+  }
+
+  async function fetchTeacherTurn(index, workingSession) {
+    const lesson = course?.lessons?.[index];
+    const transcript = (workingSession?.messages || []).map((message) => ({ role: message.role, content: message.content }));
+    const response = await fetch("/api/teach", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        lesson,
+        course,
+        transcript,
+        labEvents: workingSession?.labEvents || [],
+        state: {
+          pitfalls: workingSession?.pitfalls || [],
+          coveredConcepts: workingSession?.coveredConcepts || [],
+        },
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error("Tutor unavailable");
+    return data;
   }
 
   async function requestTeacher(index, workingSession) {
     const lesson = course?.lessons?.[index];
     if (!lesson || !course) return;
 
-    const transcript = (workingSession?.messages || []).map((message) => ({ role: message.role, content: message.content }));
-
-    try {
-      const response = await fetch("/api/teach", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          lesson,
-          course,
-          transcript,
-          labEvents: workingSession?.labEvents || [],
-          state: {
-            pitfalls: workingSession?.pitfalls || [],
-            coveredConcepts: workingSession?.coveredConcepts || [],
-          },
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data?.error || "Teaching request failed");
-
-      let artifact = null;
-      if (data.artifactBrief?.kind === "visual") {
-        try {
-          const artifactResponse = await fetch("/api/lab", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ lesson, course, brief: data.artifactBrief }),
-          });
-          const artifactData = await artifactResponse.json();
-          if (artifactResponse.ok && artifactData.visualSvg) artifact = { ...artifactData, brief: data.artifactBrief };
-        } catch {}
+    let data = null;
+    for (let attempt = 0; attempt < 2 && !data; attempt += 1) {
+      try {
+        data = await fetchTeacherTurn(index, workingSession);
+      } catch {
+        if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 350));
       }
+    }
 
-      const assistantMessage = {
-        role: "assistant",
-        content: data.reply || "Try the lab once more and tell me what changed.",
-        ...(artifact ? { artifact } : {}),
-      };
-      const nextSession = {
-        ...workingSession,
-        started: true,
-        loading: false,
-        error: "",
-        messages: [...(workingSession.messages || []), assistantMessage],
-        mastered: Boolean(data.mastered),
-        confidence: Number(data.confidence || 0),
-        pitfalls: mergeUnique(workingSession?.pitfalls || [], data.pitfalls || []),
-        coveredConcepts: mergeUnique(workingSession?.coveredConcepts || [], data.coveredConcepts || []),
-      };
-      const nextCompleted = data.mastered ? mergeUnique(completed, [index]).map(Number) : completed;
-
-      if (data.mastered) setCompleted(nextCompleted);
-      setSessions((previous) => {
-        const next = { ...previous, [index]: nextSession };
-        persist(course, nextCompleted, next);
-        return next;
-      });
-    } catch (err) {
-      const nextSession = {
-        ...workingSession,
-        started: true,
-        loading: false,
-        error: err?.message || "Retry this turn.",
-      };
+    if (!data) {
+      const nextSession = { ...workingSession, started: true, loading: false, error: true };
       setSessions((previous) => {
         const next = { ...previous, [index]: nextSession };
         persist(course, completed, next);
         return next;
       });
+      return;
     }
+
+    let artifact = null;
+    if (data.artifactBrief?.kind === "visual") {
+      try {
+        const artifactResponse = await fetch("/api/lab", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ lesson, course, brief: data.artifactBrief }),
+        });
+        const artifactData = await artifactResponse.json();
+        if (artifactResponse.ok && artifactData.visualSvg) artifact = { ...artifactData, brief: data.artifactBrief };
+      } catch {}
+    }
+
+    const assistantMessage = {
+      role: "assistant",
+      content: data.reply || "I’ll walk you through the experiment one step at a time.",
+      ...(artifact ? { artifact } : {}),
+    };
+    const nextSession = {
+      ...workingSession,
+      started: true,
+      loading: false,
+      error: false,
+      showLab: Boolean(workingSession?.showLab || data.showLab),
+      messages: [...(workingSession.messages || []), assistantMessage],
+      mastered: Boolean(data.mastered),
+      confidence: Number(data.confidence || 0),
+      pitfalls: mergeUnique(workingSession?.pitfalls || [], data.pitfalls || []),
+      coveredConcepts: mergeUnique(workingSession?.coveredConcepts || [], data.coveredConcepts || []),
+    };
+    const nextCompleted = data.mastered ? mergeUnique(completed, [index]).map(Number) : completed;
+
+    if (data.mastered) setCompleted(nextCompleted);
+    setSessions((previous) => {
+      const next = { ...previous, [index]: nextSession };
+      persist(course, nextCompleted, next);
+      return next;
+    });
+
+    if (data.showLab) ensureLab(index);
   }
 
   function startLesson(index) {
     const current = sessions[index];
-    ensureLab(index);
-    if (current?.started || current?.loading || !course?.lessons?.[index]) return;
+    if (current?.started || current?.loading || !course?.lessons?.[index]) {
+      if (current?.showLab) ensureLab(index);
+      return;
+    }
     const base = {
       started: true,
       loading: true,
-      error: "",
+      error: false,
+      showLab: false,
       messages: [],
       labEvents: [],
       pitfalls: [],
@@ -406,7 +457,8 @@ function Home() {
       const current = sessions[index] || {
         started: true,
         loading: false,
-        error: "",
+        error: false,
+        showLab: true,
         messages: [],
         labEvents: [],
         pitfalls: [],
@@ -419,7 +471,7 @@ function Home() {
       const nextSession = { ...current, labEvents: nextEvents };
 
       if (labEvent.event === "checkpoint" && !current.loading && !current.mastered) {
-        const working = { ...nextSession, loading: true, error: "" };
+        const working = { ...nextSession, loading: true, error: false };
         setSessions((previous) => ({ ...previous, [index]: working }));
         requestTeacher(index, working);
       } else {
@@ -441,10 +493,10 @@ function Home() {
     if (!content || current?.loading || current?.mastered) return;
     const userMessage = { role: "user", content };
     const working = {
-      ...(current || { started: true, pitfalls: [], coveredConcepts: [], labEvents: [], messages: [] }),
+      ...(current || { started: true, pitfalls: [], coveredConcepts: [], labEvents: [], messages: [], showLab: true }),
       started: true,
       loading: true,
-      error: "",
+      error: false,
       messages: [...(current?.messages || []), userMessage],
     };
     setDraft("");
@@ -455,7 +507,7 @@ function Home() {
   async function retryTeacher() {
     const current = sessions[lessonIndex];
     if (!current || current.loading || current.mastered) return;
-    const working = { ...current, loading: true, error: "" };
+    const working = { ...current, loading: true, error: false };
     setSessions((previous) => ({ ...previous, [lessonIndex]: working }));
     await requestTeacher(lessonIndex, working);
   }
@@ -513,7 +565,7 @@ function Home() {
         <section className="onboardingWrap">
           <span className="stepPill">Built around your destination</span>
           <h1>What should <em>{selected.title}</em> let you do?</h1>
-          <p className="lede">Every lesson becomes a small interactive world. The AI tutor watches the same experiment and teaches from what you actually do.</p>
+          <p className="lede">Every lesson becomes a small interactive world. The tutor first tells you what you are about to discover, then guides you through the experiment.</p>
           <div className="formCard">
             <label className="bigLabel">Why are you learning this?<textarea autoFocus value={why} onChange={(event) => setWhy(event.target.value)} placeholder="I want to understand probability well enough to make smarter decisions." /></label>
             <label className="bigLabel">What would success look like?<textarea value={success} onChange={(event) => setSuccess(event.target.value)} placeholder="I can look at a game or decision and reason about the odds and expected outcome." /></label>
@@ -528,53 +580,38 @@ function Home() {
 
   if (screen === "course" && course) {
     const lesson = course.lessons[lessonIndex];
-    const session = sessions[lessonIndex] || { messages: [], loading: true };
+    const session = sessions[lessonIndex] || { messages: [], loading: true, showLab: false };
     const progress = Math.round((completed.length / course.lessons.length) * 100);
 
     return (
-      <main className="tutorApp">
-        <aside className="courseRail">
-          <button className="brand railBrand" onClick={() => setScreen("home")}>knowable<span>.</span></button>
-          <div className="railCourse">
-            <span>Your course</span>
-            <h2>{course.title}</h2>
-            <div className="railProgress"><i style={{ width: `${progress}%` }} /></div>
-            <small>{progress}% mastered</small>
+      <main className="lessonApp">
+        <CourseStyles />
+        <header className="lessonBar">
+          <div style={{ display: "flex", alignItems: "center", gap: 16, minWidth: 0 }}>
+            <button className="brand" onClick={() => setScreen("home")}>knowable<span>.</span></button>
+            <span className="courseName">{course.title}</span>
           </div>
-          <div className="railLessons">
-            {course.lessons.map((item, index) => {
-              const locked = index > 0 && !completed.includes(index - 1) && !completed.includes(index);
-              return (
-                <button
-                  key={`${index}-${item.title}`}
-                  disabled={locked}
-                  className={`${index === lessonIndex ? "active" : ""} ${completed.includes(index) ? "done" : ""}`}
-                  onClick={() => {
-                    if (!locked) {
-                      setLessonIndex(index);
-                      setDraft("");
-                    }
-                  }}
-                >
-                  <span>{completed.includes(index) ? "✓" : index + 1}</span>
-                  <b>{stripNumber(item.title)}</b>
-                </button>
-              );
-            })}
+          <div className="lessonCounter">
+            <span>Lesson {lessonIndex + 1} of {course.lessons.length}</span>
+            <i><span style={{ width: `${((lessonIndex + (session.mastered ? 1 : 0)) / course.lessons.length) * 100}%` }} /></i>
           </div>
-        </aside>
+          <button className="courseExit" onClick={() => setScreen("home")}>{progress}% mastered · Exit</button>
+        </header>
 
-        <section className="tutorMain" style={{ background: "#f7f7f2" }}>
-          <header className="tutorHeader" style={{ paddingBottom: 16 }}>
-            <div>
-              <span>Lesson {lessonIndex + 1} of {course.lessons.length}</span>
-              <h1>{stripNumber(lesson.title)}</h1>
-            </div>
-            <div className="lessonGoal">{lesson.objective}</div>
-          </header>
+        <section className="lessonCanvas">
+          <div className="lessonHeading">
+            <span>Lesson {lessonIndex + 1}</span>
+            <h1>{stripNumber(lesson.title)}</h1>
+            <p>{lesson.objective}</p>
+          </div>
 
-          <div style={{ maxWidth: 1040, margin: "0 auto", padding: "20px 28px 70px" }}>
+          <TutorIntro session={session} onRetry={retryTeacher} />
+
+          {session.showLab && session.messages?.length > 0 && (
             <PrimaryLab lesson={lesson} lab={labs[lessonIndex]} onRetry={() => ensureLab(lessonIndex, true)} />
+          )}
+
+          {session.messages?.length > 0 && (
             <Conversation
               lesson={lesson}
               session={session}
@@ -587,7 +624,7 @@ function Home() {
               onNext={goNext}
               isLast={lessonIndex === course.lessons.length - 1}
             />
-          </div>
+          )}
         </section>
       </main>
     );
@@ -606,7 +643,7 @@ function Home() {
       <section className="hero">
         <span className="heroBadge">Every lesson is something you can touch</span>
         <h1>Learn by <em>doing first.</em></h1>
-        <p>Knowable builds a custom interactive lab for every lesson. An AI tutor watches what happens, talks you through the experiment, and only moves on when the idea clicks.</p>
+        <p>Knowable explains what you are about to discover, gives you one interactive experiment, then asks precise questions about what actually happened.</p>
         <div className="customBar">
           <input value={customTopic} onChange={(event) => setCustomTopic(event.target.value)} placeholder="What do you want to learn?" onKeyDown={(event) => { if (event.key === "Enter" && customTopic.trim()) chooseCourse({ title: customTopic.trim() }); }} />
           <button onClick={() => customTopic.trim() && chooseCourse({ title: customTopic.trim() })}>Start →</button>
@@ -614,7 +651,7 @@ function Home() {
       </section>
 
       <section className="examples">
-        <div className="sectionHead"><div><span className="eyebrow">Start somewhere</span><h2>Example subjects</h2></div><p>The lesson is not an article. It is a manipulable situation plus a tutor that adapts to what you do.</p></div>
+        <div className="sectionHead"><div><span className="eyebrow">Start somewhere</span><h2>Example subjects</h2></div><p>One tutor. One experiment. One idea at a time.</p></div>
         <div className="courseGrid">
           {EXAMPLES.map((item) => (
             <button className="courseCard" key={item.title} onClick={() => chooseCourse(item)}>
