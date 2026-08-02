@@ -2,6 +2,8 @@ import tanstackEntry from "@tanstack/react-start/server-entry";
 import { everyApp } from "@every-app/sdk/server";
 import manifest from "../everyapp.config";
 import { handleCourseRequest } from "./server/course";
+import { handleLabRequest } from "./server/lab";
+import { handleTutorRequest } from "./server/tutor";
 
 const handler = async (request, env) => {
   const url = new URL(request.url);
@@ -18,14 +20,19 @@ const handler = async (request, env) => {
     return handleCourseRequest(request, env);
   }
 
+  if (url.pathname === "/api/lab" && request.method === "POST") {
+    return handleLabRequest(request, env);
+  }
+
+  if (url.pathname === "/api/tutor" && request.method === "POST") {
+    return handleTutorRequest(request, env);
+  }
+
   return tanstackEntry.fetch(request);
 };
 
 export default {
   async fetch(request, env, ctx) {
-    // everyapp dev mints local identity tokens with this issuer, but some
-    // current CLI builds do not inject EVERYAPP_IDENTITY_ISSUER into the
-    // worker env. Fall back only when EVERYAPP_DEV is explicitly enabled.
     const issuer =
       env?.EVERYAPP_IDENTITY_ISSUER ||
       (env?.EVERYAPP_DEV === "1" || env?.EVERYAPP_DEV === "true"
