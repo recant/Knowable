@@ -14,32 +14,69 @@ function uniqueStrings(values, limit = 12) {
   return [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))].slice(0, limit);
 }
 
-function fallbackTurn({ lesson, transcript = [] }) {
+function lastUserText(transcript = []) {
+  return [...transcript].reverse().find((message) => message.role === "user")?.content?.trim() || "";
+}
+
+function learnerIsLost(transcript = []) {
+  const text = lastUserText(transcript).toLowerCase();
+  if (!text) return false;
+  return /\b(i\s*(?:do not|don't|dont)\s*know|no idea|i(?:'m| am)\s*(?:lost|confused|stuck)|i\s*suck\s*at|what does that mean|i don't understand|i dont understand|help me|teach me|explain it)\b/i.test(text);
+}
+
+function demoTurn({ lesson, transcript = [] }) {
   const userTurns = transcript.filter((message) => message.role === "user").length;
+  const keyIdea = Array.isArray(lesson?.keyIdeas) && lesson.keyIdeas[0]
+    ? String(lesson.keyIdeas[0])
+    : String(lesson?.objective || "the core idea");
+
   if (userTurns === 0) {
     return {
-      action: "question",
-      reply: `We’ll build ${String(lesson?.title || "this idea").replace(/^\d+\.\s*/, "")} from something concrete. Before I explain it: what do you already think this idea means, even if you’re unsure?`,
+      action: "explain",
+      reply: `Let’s start from zero. The first thing to understand is: ${keyIdea} I’ll build it with a concrete example, then you can tell me what part still feels fuzzy.`,
       mastered: false,
       confidence: 0,
       pitfalls: [],
       coveredConcepts: [],
       artifactBrief: null,
+      demo: true,
     };
   }
+
+  if (learnerIsLost(transcript)) {
+    return {
+      action: "explain",
+      reply: `That tells me I should explain, not test you. Start with this one idea: ${keyIdea} Forget the formal definition for now. I’d rather make that single idea intuitive first.`,
+      mastered: false,
+      confidence: 0,
+      pitfalls: ["Needed the concept rebuilt from first principles."],
+      coveredConcepts: [],
+      artifactBrief: null,
+      demo: true,
+    };
+  }
+
   return {
     action: "question",
-    reply: "Good start. Now give me one concrete example and tell me what you expect to happen. I want to see the idea in your own mental model, not a memorized definition.",
+    reply: "What changed in your mental model after that explanation? Say it casually; one sentence is enough.",
     mastered: false,
-    confidence: 0.25,
+    confidence: 0.2,
     pitfalls: [],
     coveredConcepts: [],
     artifactBrief: null,
+    demo: true,
   };
 }
 
 function buildPrompt({ lesson, course, transcript, state }) {
+  const needsTeaching = learnerIsLost(transcript);
+  const learnerStatus = needsTeaching
+    ? `CRITICAL LEARNER STATE: The learner explicitly indicated that they do not know, are confused, lost, or need help. DO NOT test them again yet. Your next move MUST teach or demonstrate the missing idea. Do not ask them to invent an example, define the concept, or prove understanding until after you have taught it.`
+    : "LEARNER STATE: Continue adapting from the conversation.";
+
   return `You are the live teacher inside Knowable. You are not writing a textbook page. You are having an adaptive one-on-one teaching conversation.
+
+${learnerStatus}
 
 COURSE GOAL
 ${course?.learnerGoal || "Understand the subject deeply."}
@@ -69,14 +106,17 @@ ${JSON.stringify(transcript || [], null, 2)}
 Your job is to choose the single best NEXT teaching move.
 
 Teaching rules:
+- Teach before testing. If the learner says they do not know or are confused, explain first.
 - Teach one small idea at a time.
-- Start concrete and intuitive. Use examples before abstraction.
+- Start concrete and intuitive. Use a tiny example before abstraction.
 - Never dump a paragraph of jargon.
 - Keep your reply under 90 words, usually under 60.
 - Ask at most ONE question in a reply.
+- Do not praise an answer that did not demonstrate understanding. Never call "I don't know" a good start.
 - Do not use LaTeX delimiters such as $...$, \\(...\\), or \\[...\\]. The UI does not render them.
 - Do not introduce symbols until you have explained what each symbol means in plain English.
-- If the learner gives a nonsense answer, misconception, or partial answer, diagnose it gently and teach from there.
+- If the learner gives a nonsense answer, misconception, or partial answer, diagnose it and teach from there.
+- If the learner says they lack prerequisite knowledge, lower the level and supply the prerequisite instead of demanding it.
 - Do not merely say an answer is wrong. Find the mistaken mental model.
 - Use a visual when spatial structure, flow, comparison, geometry, or a process would become clearer by seeing it.
 - Use a lab when changing a variable and observing the result would genuinely teach the idea.
@@ -127,7 +167,7 @@ export async function handleTeachRequest(request, env) {
     : [];
 
   const key = env?.GEMINI_API_KEY;
-  if (!key) return Response.json(fallbackTurn({ lesson: input.lesson, transcript }));
+  if (!key) return Response.json(demoTurn({ lesson: input.lesson, transcript }));
 
   try {
     const response = await fetch(
@@ -142,8 +182,12 @@ export async function handleTeachRequest(request, env) {
     );
 
     if (!response.ok) {
-      console.error("Teaching model error", response.status, await response.text());
-      return Response.json(fallbackTurn({ lesson: input.lesson, transcript }));
+      const detail = await response.text();
+      console.error("Teaching model error", response.status, detail);
+      return Response.json(
+        { error: "The AI tutor did not answer. Retry this turn.", code: `gemini_${response.status}` },
+        { status: 502 },
+      );
     }
 
     const data = await response.json();
@@ -152,7 +196,7 @@ export async function handleTeachRequest(request, env) {
     const userTurns = transcript.filter((message) => message.role === "user").length;
     const confidence = Math.max(0, Math.min(1, Number(raw?.confidence || 0)));
     const canMaster = Boolean(raw?.mastered) && confidence >= 0.82 && userTurns >= 2;
-    const requestedAction = ACTIONS.has(raw?.action) ? raw.action : "question";
+    const requestedAction = ACTIONS.has(raw?.action) ? raw.action : "explain";
     const action = canMaster ? "mastered" : requestedAction === "mastered" ? "question" : requestedAction;
 
     let artifactBrief = null;
@@ -168,7 +212,7 @@ export async function handleTeachRequest(request, env) {
 
     return Response.json({
       action,
-      reply: String(raw?.reply || "Tell me what you think is happening here, in your own words."),
+      reply: String(raw?.reply || "Let me explain that another way."),
       mastered: canMaster,
       confidence,
       pitfalls: uniqueStrings(raw?.pitfalls),
@@ -177,6 +221,9 @@ export async function handleTeachRequest(request, env) {
     });
   } catch (error) {
     console.error("Teaching loop error", error);
-    return Response.json(fallbackTurn({ lesson: input.lesson, transcript }));
+    return Response.json(
+      { error: "The AI tutor response could not be read. Retry this turn.", code: "tutor_parse_error" },
+      { status: 502 },
+    );
   }
 }
