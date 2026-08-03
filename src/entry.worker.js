@@ -2,7 +2,7 @@ import tanstackEntry from "@tanstack/react-start/server-entry";
 import { everyApp } from "@every-app/sdk/server";
 import manifest from "../everyapp.config";
 import { handleCourseRequest } from "./server/course";
-import { handleLabRequest } from "./server/lab-v3";
+import { handleLabRequest } from "./server/lab";
 import { handleTeachRequest } from "./server/teach";
 import { handleNotesRequest } from "./server/notes";
 
