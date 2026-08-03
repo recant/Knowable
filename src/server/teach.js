@@ -290,7 +290,7 @@ export async function handleTeachRequest(request, env) {
 
     const showLab = firstTurn
       ? false
-      : Boolean(state?.showLab || labEvents.length || action === "lab" || raw?.showLab);
+      : Boolean(state?.showLab || labEvents.length || action === "lab");
 
     return Response.json({
       action,
