@@ -14,7 +14,7 @@ function fallbackCourse({ topic, why, success, background }) {
 
   return {
     title: topic,
-    subtitle: "Learn by manipulating the idea, not reading about it",
+    subtitle: "Learn one idea at a time, then make it move",
     learnerGoal: why || `Understand ${topic} well enough to use it`,
     successMetric: success || `Use ${topic} confidently without outside help`,
     lessons: names.map((name, index) => ({
@@ -22,13 +22,13 @@ function fallbackCourse({ topic, why, success, background }) {
       durationMinutes: 10,
       objective: `Build one concrete piece of your ${topic} mental model and connect it to what came before.`,
       whyItMatters: `This lesson is here because your goal is: ${why || `understand ${topic}`}.`,
-      explanation: `Learn this through a concrete interactive model. ${background ? `Build from what you already know: ${background}.` : "No prior knowledge is assumed."}`,
+      explanation: `Build the intuition in small steps, then test it interactively. ${background ? `Build from what you already know: ${background}.` : "No prior knowledge is assumed."}`,
       keyIdeas: [
         `Identify the mechanism behind this part of ${topic}.`,
         "Predict what will happen before interacting.",
         "Explain what the result means in plain language.",
       ],
-      visualBrief: `A minimal supporting diagram for lesson ${index + 1} of ${topic}, only if the tutor needs one beyond the lab.`,
+      visualBrief: `A minimal supporting diagram for lesson ${index + 1} of ${topic}, only if it helps before or after the lab.`,
       labBrief: {
         title: `Explore ${topic}`,
         concept: `The central causal idea in lesson ${index + 1}.`,
@@ -36,10 +36,10 @@ function fallbackCourse({ topic, why, success, background }) {
         purpose: "Let the learner discover the central relationship by doing something and immediately seeing the consequence.",
         interaction: "One obvious primary action plus at most one optional control. The visual state must visibly change every time.",
         learnerTask: "Try the main action several times, make a prediction, and notice the pattern.",
-        checkpoint: "Send a teaching checkpoint to the parent after a meaningful experiment so the AI tutor can react to what happened.",
+        checkpoint: "Send a teaching checkpoint to the parent after a meaningful experiment so the lesson can react to what happened.",
       },
       tutorSeed: {
-        openingQuestion: "Guide the learner into the lab first. Ask them to try one specific action before testing abstract understanding.",
+        openingQuestion: "Start with a short conceptual setup. Ask a focused prediction when useful, and reveal the lab only when the learner has enough context to learn from it.",
         masteryCriteria: [
           "Explains the mechanism rather than repeating vocabulary",
           "Can predict what changes when a relevant variable changes",
@@ -51,7 +51,7 @@ function fallbackCourse({ topic, why, success, background }) {
 }
 
 function buildPrompt(input) {
-  return `You are the curriculum designer for Knowable, an AI-native interactive learning product.
+  return `You are the curriculum designer for Knowable, an adaptive interactive learning product.
 
 Create a personalized course about: ${input.topic}
 Why the learner wants it: ${input.why || "not specified"}
@@ -81,11 +81,11 @@ Use this shape:
         "scene": "the concrete miniature world or objects the learner sees",
         "purpose": "what they should discover",
         "interaction": "exact interaction mechanics",
-        "learnerTask": "a short experiment the AI tutor can ask them to do",
-        "checkpoint": "what meaningful interaction/result should trigger tutor feedback"
+        "learnerTask": "a short experiment the adaptive lesson can ask them to do",
+        "checkpoint": "what meaningful interaction/result should trigger the next teaching step"
       },
       "tutorSeed": {
-        "openingQuestion": "instruction to the tutor for how to introduce the lab",
+        "openingQuestion": "pacing guidance for how to set up, question, and eventually reveal the lab",
         "masteryCriteria": ["criterion", "criterion", "criterion"]
       }
     }
@@ -96,11 +96,11 @@ Rules:
 - Return exactly 8 lessons, each about 10 minutes.
 - Build a dependency chain; later lessons must use earlier ideas.
 - Optimize for THIS learner's goal and success metric.
-- EVERY lesson must have a primary interactive lab. The lab is the centerpiece of the lesson, not an optional illustration.
+- EVERY lesson must have one primary interactive lab, but the lab does NOT have to appear first. The lesson should unfold in small steps: concise explanation, prediction/question when useful, interactive exploration at the right moment, then interpretation and transfer.
 - The lab must feel like a tiny real situation, toy, simulation, instrument, or game—not a generic dashboard and not a pair of arbitrary sliders.
-- Prefer familiar concrete worlds before symbols. The AI tutor will talk the learner through the lab and only then abstract the lesson.
+- Prefer familiar concrete worlds before symbols.
 - Give the lab one obvious primary action. At most one secondary control unless the concept truly requires more.
-- Design the learnerTask so the learner can discover the concept by interacting before being given the formal rule.
+- Design the learnerTask so interaction reveals something that is difficult to learn from prose alone.
 - Examples:
   * expected value / casino probability → a roulette wheel or repeated wager simulator with a Spin button, visible wins/losses, balance, and running average so the learner sees short-run randomness and long-run house edge;
   * derivatives → drag a point along a curve and watch the tangent slope change;
@@ -110,10 +110,10 @@ Rules:
   * music theory → playable keys/chords where changing one note changes the harmony;
   * orbital mechanics → launch an object and adjust one initial condition to see the orbit change.
 - Do not force every subject into charts.
-- The visualBrief is secondary; the interactive lab is primary.
-- The tutor should begin by directing attention to the lab, not by asking for a definition.
+- The visualBrief is secondary; use it only when a static picture adds something the lab cannot.
+- Do not prescribe a chatbot-style conversation. Design the lesson as a sequence of clean instructional steps.
 - The final lesson must directly test the learner's stated success metric.
-- Do NOT generate HTML or JavaScript here; the lab is generated lazily when the lesson opens.`;
+- Do NOT generate HTML or JavaScript here; the lab is generated lazily when the lesson reaches it.`;
 }
 
 function extractJson(text) {
@@ -141,7 +141,7 @@ function normalizeCourse(raw, input) {
     durationMinutes: 10,
     objective: String(lesson?.objective || `Understand the next part of ${input.topic}.`),
     whyItMatters: String(lesson?.whyItMatters || `This connects ${input.topic} to your goal.`),
-    explanation: String(lesson?.explanation || "Learn the core relationship through the interactive lab."),
+    explanation: String(lesson?.explanation || "Build the intuition in a small step, then test it interactively."),
     keyIdeas: stringArray(lesson?.keyIdeas, [
       `Identify the mechanism behind this part of ${input.topic}.`,
       "Predict how the system changes.",
@@ -155,10 +155,10 @@ function normalizeCourse(raw, input) {
       purpose: String(lesson?.labBrief?.purpose || "Discover the lesson's central relationship by interacting."),
       interaction: String(lesson?.labBrief?.interaction || "One obvious action with an immediate visible consequence."),
       learnerTask: String(lesson?.labBrief?.learnerTask || "Try the main action several times and notice the pattern."),
-      checkpoint: String(lesson?.labBrief?.checkpoint || "After a meaningful experiment, report a concise checkpoint to the tutor."),
+      checkpoint: String(lesson?.labBrief?.checkpoint || "After a meaningful experiment, report a concise checkpoint so the next teaching step can react."),
     },
     tutorSeed: {
-      openingQuestion: String(lesson?.tutorSeed?.openingQuestion || "Start by guiding the learner through one concrete action in the lab."),
+      openingQuestion: String(lesson?.tutorSeed?.openingQuestion || "Start with a concise setup, ask a prediction when useful, and reveal the lab when it will clarify the idea."),
       masteryCriteria: stringArray(lesson?.tutorSeed?.masteryCriteria, [
         "Explains the mechanism",
         "Can make a correct prediction",
@@ -171,7 +171,7 @@ function normalizeCourse(raw, input) {
 
   return {
     title: String(raw.title || input.topic),
-    subtitle: String(raw.subtitle || "Learn by manipulating the idea, not reading about it"),
+    subtitle: String(raw.subtitle || "Learn one idea at a time, then make it move"),
     learnerGoal: String(raw.learnerGoal || input.why || `Understand ${input.topic}`),
     successMetric: String(raw.successMetric || input.success || `Use ${input.topic} independently`),
     lessons,
