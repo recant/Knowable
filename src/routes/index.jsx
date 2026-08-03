@@ -584,47 +584,72 @@ function Home() {
     const progress = Math.round((completed.length / course.lessons.length) * 100);
 
     return (
-      <main className="lessonApp">
+      <main className="tutorApp">
         <CourseStyles />
-        <header className="lessonBar">
-          <div style={{ display: "flex", alignItems: "center", gap: 16, minWidth: 0 }}>
-            <button className="brand" onClick={() => setScreen("home")}>knowable<span>.</span></button>
-            <span className="courseName">{course.title}</span>
+        <aside className="courseRail">
+          <button className="brand railBrand" onClick={() => setScreen("home")}>knowable<span>.</span></button>
+          <div className="railCourse">
+            <span>Your course</span>
+            <h2>{course.title}</h2>
+            <div className="railProgress"><i style={{ width: `${progress}%` }} /></div>
+            <small>{progress}% mastered</small>
           </div>
-          <div className="lessonCounter">
-            <span>Lesson {lessonIndex + 1} of {course.lessons.length}</span>
-            <i><span style={{ width: `${((lessonIndex + (session.mastered ? 1 : 0)) / course.lessons.length) * 100}%` }} /></i>
+          <div className="railLessons">
+            {course.lessons.map((item, index) => {
+              const locked = index > 0 && !completed.includes(index - 1) && !completed.includes(index);
+              return (
+                <button
+                  key={`${index}-${item.title}`}
+                  disabled={locked}
+                  className={`${index === lessonIndex ? "active" : ""} ${completed.includes(index) ? "done" : ""}`}
+                  onClick={() => {
+                    if (!locked) {
+                      setLessonIndex(index);
+                      setDraft("");
+                    }
+                  }}
+                >
+                  <span>{completed.includes(index) ? "✓" : index + 1}</span>
+                  <b>{stripNumber(item.title)}</b>
+                </button>
+              );
+            })}
           </div>
-          <button className="courseExit" onClick={() => setScreen("home")}>{progress}% mastered · Exit</button>
-        </header>
+        </aside>
 
-        <section className="lessonCanvas">
-          <div className="lessonHeading">
-            <span>Lesson {lessonIndex + 1}</span>
-            <h1>{stripNumber(lesson.title)}</h1>
-            <p>{lesson.objective}</p>
+        <section className="tutorMain">
+          <header className="tutorHeader">
+            <div>
+              <span>Lesson {lessonIndex + 1} of {course.lessons.length}</span>
+              <h1>{stripNumber(lesson.title)}</h1>
+            </div>
+            <div className="lessonGoal">{lesson.objective}</div>
+          </header>
+
+          <div style={{ flex: 1, overflowY: "auto" }}>
+            <div style={{ maxWidth: 1040, margin: "0 auto", padding: "28px 28px 70px" }}>
+              <TutorIntro session={session} onRetry={retryTeacher} />
+
+              {session.showLab && session.messages?.length > 0 && (
+                <PrimaryLab lesson={lesson} lab={labs[lessonIndex]} onRetry={() => ensureLab(lessonIndex, true)} />
+              )}
+
+              {session.messages?.length > 0 && (
+                <Conversation
+                  lesson={lesson}
+                  session={session}
+                  draft={draft}
+                  setDraft={setDraft}
+                  onSend={sendCurrentMessage}
+                  onRetry={retryTeacher}
+                  notesState={notes[lessonIndex]}
+                  onDownloadNotes={() => generateNotes(lessonIndex)}
+                  onNext={goNext}
+                  isLast={lessonIndex === course.lessons.length - 1}
+                />
+              )}
+            </div>
           </div>
-
-          <TutorIntro session={session} onRetry={retryTeacher} />
-
-          {session.showLab && session.messages?.length > 0 && (
-            <PrimaryLab lesson={lesson} lab={labs[lessonIndex]} onRetry={() => ensureLab(lessonIndex, true)} />
-          )}
-
-          {session.messages?.length > 0 && (
-            <Conversation
-              lesson={lesson}
-              session={session}
-              draft={draft}
-              setDraft={setDraft}
-              onSend={sendCurrentMessage}
-              onRetry={retryTeacher}
-              notesState={notes[lessonIndex]}
-              onDownloadNotes={() => generateNotes(lessonIndex)}
-              onNext={goNext}
-              isLast={lessonIndex === course.lessons.length - 1}
-            />
-          )}
         </section>
       </main>
     );
